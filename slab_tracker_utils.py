@@ -38,13 +38,13 @@ def make_age_interpolator(grdfile,interp='Spherical'):
         
     # spherical interpolation
     # Note the not-ideal method for avoiding issues with points at the edges of the grid
-    if interp is 'Spherical':
+    if interp == 'Spherical':
         lut = spi.RectSphereBivariateSpline(np.radians(gridY[1:-1]+90.),
                                             np.radians(gridX[1:-1]+180.),
                                             gridZ_filled[1:-1,1:-1])
 
     # flat earth interpolation
-    elif interp is 'FlatEarth':
+    elif interp == 'FlatEarth':
         lut=spi.RectBivariateSpline(gridX,gridY,gridZ_filled.T)
 
     return lut
@@ -244,8 +244,8 @@ def warp_subduction_segment(tessellated_line,
                 normal = prev_normal
             else:
                 normal = (prev_normal + next_normal).to_normalised()
-
-            parallel = pygplates.Vector3D.cross(point.to_xyz(), normal).to_normalised()
+            # print(points[point_index])
+            parallel = pygplates.Vector3D.cross(points[point_index].to_xyz(), normal).to_normalised()
 
             normals.append(normal)
             parallels.append(parallel)

@@ -33,25 +33,25 @@ def find_plate_change_for_time_step(topology_features,rotation_model,time_from,t
 
     if verbose:
         # plate_ids in both lists
-        print 'plates that persist between %0.2f Ma and %0.2f Ma are: \n %s\n' % \
-            (time_from,time_to,common_plates)
+        print('plates that persist between %0.2f Ma and %0.2f Ma are: \n %s\n' % \
+            (time_from,time_to,common_plates))
 
         # plates ids that are not in the t2 list
-        print 'plates that appeared between %0.2f Ma and %0.2f Ma are: \n %s\n' % \
-            (time_from,time_to,appearing_plates)
+        print('plates that appeared between %0.2f Ma and %0.2f Ma are: \n %s\n' % \
+            (time_from,time_to,appearing_plates))
 
         # plate ids that are not in the t1 list
-        print 'plates that disappeared between %0.2f Ma and %0.2f Ma are: \n %s' % \
-            (time_from,time_to,disappearing_plates)
+        print('plates that disappeared between %0.2f Ma and %0.2f Ma are: \n %s' % \
+            (time_from,time_to,disappearing_plates))
         
-        print '\nWorking on appearing plates'
+        print('\nWorking on appearing plates')
     appearing_plate_map = plate_change_mapping(appearing_plates,
                                                resolved_topologies_t1,
                                                resolved_topologies_t2,
                                                verbose=verbose)
     
     if verbose:
-        print '\nWorking on disappearing plates'
+        print('\nWorking on disappearing plates')
     disappearing_plate_map = plate_change_mapping(disappearing_plates,
                                                   resolved_topologies_t2,
                                                   resolved_topologies_t1,
@@ -73,8 +73,8 @@ def plate_change_mapping(plate_list_at_time,topologies_at_time,topologies_at_del
         for topology in topologies_at_delta_time:
             if topology.get_resolved_geometry().is_point_in_polygon(centroid):
                 if verbose:
-                    print 'Centroid for plate %d mapped to plate %d at delta time' % \
-                        (plate,topology.get_feature().get_reconstruction_plate_id())    
+                    print('Centroid for plate %d mapped to plate %d at delta time' % \
+                        (plate,topology.get_feature().get_reconstruction_plate_id()))
                 plate_map.append((plate,topology.get_feature().get_reconstruction_plate_id()))
                     
     return plate_map
@@ -113,7 +113,7 @@ def get_great_circle_along_plate_split(plate_split,
     
     great_circle_arc = None
 
-    print plate_split
+    print(plate_split)
     geometries_along_new_split = []
 
     for shared_boundary_section in shared_boundary_sections:
@@ -132,7 +132,7 @@ def get_great_circle_along_plate_split(plate_split,
                     geometries_along_new_split.append(shared_sub_segment.get_geometry())
 
     if len(geometries_along_new_split)!=1:
-        print 'Only works for new splits with one geometry so far'
+        print('Only works for new splits with one geometry so far')
     else:
         #print geometries_along_new_split
         great_circle_arc = pygplates.GreatCircleArc(
@@ -158,7 +158,7 @@ def get_plate_disappearance_time_lut(topology_features,
          disappearing_plate_map) = find_plate_change_for_time_step(topology_features,rotation_model,time_from,time_to,verbose)
 
         if len(zip(*disappearing_plate_map))>0:
-            print list(zip(*disappearing_plate_map)[0])
+            print(list(zip(*disappearing_plate_map)[0]))
             for plate_id in list(zip(*disappearing_plate_map)[0]):
                 plate_id
                 plate_disappearance_time_lut.append((plate_id,time))
