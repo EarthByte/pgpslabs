@@ -60,7 +60,8 @@ def getSubductionBoundarySections(topology_features,rotation_model,time):
     # We generate both the resolved topology boundaries and the boundary sections between them.
     resolved_topologies = []
     shared_boundary_sections = []
-    pygplates.resolve_topologies(topology_features, rotation_model, resolved_topologies, time, shared_boundary_sections)
+    pygplates.resolve_topologies(topology_features, rotation_model, resolved_topologies, time, shared_boundary_sections, 
+                                 resolve_topology_types=pygplates.ResolveTopologyType.boundary)
                     
     for shared_boundary_section in shared_boundary_sections:
                 
@@ -90,7 +91,12 @@ def find_overriding_and_subducting_plates(subduction_shared_sub_segment, time):
         print('Unable to find the overriding and subducting plates of the subducting shared sub-segment "{0}" at {1}Ma'.format(
             subduction_shared_sub_segment.get_feature().get_name(), time), file=sys.stderr)
         print('    there are not exactly 2 topologies sharing the sub-segment.', file=sys.stderr)
-        print(str(sharing_resolved_topologies[0].get_resolved_feature().get_reconstruction_plate_id()), file=sys.stderr)
+        
+        plate_ids_in_question = []
+        for i in range(len(sharing_resolved_topologies)):
+            plate_ids_in_question.append(sharing_resolved_topologies[i].get_resolved_feature().get_reconstruction_plate_id())
+        print('    there are %s topologies here, with plate IDs: %s ' % (len(sharing_resolved_topologies), plate_ids_in_question), file=sys.stderr)
+        
         return
 
     overriding_plate = None
@@ -167,7 +173,10 @@ def warp_subduction_segment(tessellated_line,
     if len(points) < 2:
         points = None; point_depths = None; polyline = None
         return points, point_depths, polyline
-
+    
+    # print(len(points))
+    # print(points)
+    
     polyline = pygplates.PolylineOnSphere(points)
 
     warped_polylines = []
@@ -226,35 +235,43 @@ def warp_subduction_segment(tessellated_line,
                     subducting_normal_reversal * segment.get_great_circle_normal())
         subducting_normals.append(None) # Imaginary segment after to last point.
 
+        # print('subducting length: %s' % len(subducting_normals))
+        # print('points length: %s ' % (len(points)))
         # get vectors of normals and parallels for each segment, use these 
         # to get a normal and parallel at each point location
         normals = []
-        parallels = []            
+        parallels = []
         for point_index in range(len(points)):
+            # print('point_index1: %s' % point_index)
+            
             prev_normal = subducting_normals[point_index]
             next_normal = subducting_normals[point_index + 1]
 
             if prev_normal is None and next_normal is None:
                 # Skip point altogether (both adjoining segments are zero length).
-                continue
-
-            if prev_normal is None:
-                normal = next_normal
-            elif next_normal is None:
-                normal = prev_normal
+                # NW edit - actually give them None, since we haven't dropped the actual points.
+                # Then we will skip these points in the next loop.
+                normal = None
+                parallel = None
             else:
-                normal = (prev_normal + next_normal).to_normalised()
-            # print(points[point_index])
-            parallel = pygplates.Vector3D.cross(points[point_index].to_xyz(), normal).to_normalised()
-
+                if prev_normal is None:
+                    normal = next_normal
+                elif next_normal is None:
+                    normal = prev_normal
+                else:
+                    normal = (prev_normal + next_normal).to_normalised()
+                # print(points[point_index])
+                parallel = pygplates.Vector3D.cross(points[point_index].to_xyz(), normal).to_normalised()
+                        
             normals.append(normal)
             parallels.append(parallel)
-
+        
         # iterate over each point to determine the incremented position 
         # based on plate motion and subduction dip
         warped_points = []
         warped_point_depths = []
         for point_index, point in enumerate(points):
+            # print('point_index: %s' % point_index)
             normal = normals[point_index]
             parallel = parallels[point_index]
 
@@ -264,68 +281,71 @@ def warp_subduction_segment(tessellated_line,
                 warped_points.append(point)
                 warped_point_depths.append(point_depths[point_index])
                 continue
-
-            # reconstruct the tracked point from position at current time to
-            # position at the next time step
-            normal_angle = pygplates.Vector3D.angle_between(velocity, normal)
-            parallel_angle = pygplates.Vector3D.angle_between(velocity, parallel)
-
-            # Trench parallel and normal components of velocity.
-            velocity_normal = np.cos(normal_angle) * velocity.get_magnitude()
-            velocity_parallel = np.cos(parallel_angle) * velocity.get_magnitude()
-
-            normal_vector = normal.to_normalised() * velocity_normal
-            parallel_vector = parallel.to_normalised() * velocity_parallel
-
-            # Adjust velocity based on subduction vertical dip angle.
-            velocity_dip = parallel_vector + np.cos(dip_angle_radians) * normal_vector
-
-            #deltaZ is the amount that this point increases in depth within the time step
-            deltaZ = np.sin(dip_angle_radians) * velocity.get_magnitude()
-
-            # Should be 90 degrees always.
-            #print np.degrees(np.arccos(pygplates.Vector3D.dot(normal_vector, parallel_vector)))
-
-            if use_small_circle_path:
-                # Rotate original stage pole by the same angle that effectively
-                # rotates the velocity vector to the dip velocity vector.
-                dip_stage_pole_rotate = pygplates.FiniteRotation(
-                        point,
-                        pygplates.Vector3D.angle_between(velocity_dip, velocity))
-                dip_stage_pole = dip_stage_pole_rotate * stage_pole
+            # NW quick hack to get this working for now
+            if normal is None:
+                pass
             else:
-                # Get the unnormalised vector perpendicular to both the point and velocity vector.
-                dip_stage_pole_x, dip_stage_pole_y, dip_stage_pole_z = pygplates.Vector3D.cross(
-                        point.to_xyz(), velocity_dip).to_xyz()
+                # reconstruct the tracked point from position at current time to
+                # position at the next time step
+                normal_angle = pygplates.Vector3D.angle_between(velocity, normal)
+                parallel_angle = pygplates.Vector3D.angle_between(velocity, parallel)
 
-                # PointOnSphere requires a normalised (ie, unit length) vector (x, y, z).
-                dip_stage_pole = pygplates.PointOnSphere(
-                        dip_stage_pole_x, dip_stage_pole_y, dip_stage_pole_z, normalise=True)
+                # Trench parallel and normal components of velocity.
+                velocity_normal = np.cos(normal_angle) * velocity.get_magnitude()
+                velocity_parallel = np.cos(parallel_angle) * velocity.get_magnitude()
+
+                normal_vector = normal.to_normalised() * velocity_normal
+                parallel_vector = parallel.to_normalised() * velocity_parallel
+
+                # Adjust velocity based on subduction vertical dip angle.
+                velocity_dip = parallel_vector + np.cos(dip_angle_radians) * normal_vector
+
+                #deltaZ is the amount that this point increases in depth within the time step
+                deltaZ = np.sin(dip_angle_radians) * velocity.get_magnitude()
+
+                # Should be 90 degrees always.
+                #print np.degrees(np.arccos(pygplates.Vector3D.dot(normal_vector, parallel_vector)))
+
+                if use_small_circle_path:
+                    # Rotate original stage pole by the same angle that effectively
+                    # rotates the velocity vector to the dip velocity vector.
+                    dip_stage_pole_rotate = pygplates.FiniteRotation(
+                            point,
+                            pygplates.Vector3D.angle_between(velocity_dip, velocity))
+                    dip_stage_pole = dip_stage_pole_rotate * stage_pole
+                else:
+                    # Get the unnormalised vector perpendicular to both the point and velocity vector.
+                    dip_stage_pole_x, dip_stage_pole_y, dip_stage_pole_z = pygplates.Vector3D.cross(
+                            point.to_xyz(), velocity_dip).to_xyz()
+
+                    # PointOnSphere requires a normalised (ie, unit length) vector (x, y, z).
+                    dip_stage_pole = pygplates.PointOnSphere(
+                            dip_stage_pole_x, dip_stage_pole_y, dip_stage_pole_z, normalise=True)
 
 
-            # Get angle that velocity will rotate seed point along great circle arc 
-            # over 'time_step' My (if velocity in Kms / My).
-            dip_stage_angle_radians = velocity_dip.get_magnitude() * (
-                    time_step / pygplates.Earth.mean_radius_in_kms)
+                # Get angle that velocity will rotate seed point along great circle arc 
+                # over 'time_step' My (if velocity in Kms / My).
+                dip_stage_angle_radians = velocity_dip.get_magnitude() * (
+                        time_step / pygplates.Earth.mean_radius_in_kms)
 
-            if use_small_circle_path:
-                # Increase rotation angle to adjust for fact that we're moving a
-                # shorter distance with small circle (compared to great circle).
-                dip_stage_angle_radians /= np.abs(np.sin(
-                        pygplates.Vector3D.angle_between(
-                                dip_stage_pole.to_xyz(), point.to_xyz())))
-                # Use same sign as original stage rotation.
-                if stage_pole_angle_radians < 0:
-                    dip_stage_angle_radians = -dip_stage_angle_radians
+                if use_small_circle_path:
+                    # Increase rotation angle to adjust for fact that we're moving a
+                    # shorter distance with small circle (compared to great circle).
+                    dip_stage_angle_radians /= np.abs(np.sin(
+                            pygplates.Vector3D.angle_between(
+                                    dip_stage_pole.to_xyz(), point.to_xyz())))
+                    # Use same sign as original stage rotation.
+                    if stage_pole_angle_radians < 0:
+                        dip_stage_angle_radians = -dip_stage_angle_radians
 
-            # get the stage rotation that describes the lateral motion of the 
-            # point taking the dip into account
-            dip_stage_rotation = pygplates.FiniteRotation(dip_stage_pole, dip_stage_angle_radians)
+                # get the stage rotation that describes the lateral motion of the 
+                # point taking the dip into account
+                dip_stage_rotation = pygplates.FiniteRotation(dip_stage_pole, dip_stage_angle_radians)
 
-            # increment the point long,lat and depth
-            warped_point = dip_stage_rotation * point
-            warped_points.append(warped_point)
-            warped_point_depths.append(point_depths[point_index] + deltaZ)
+                # increment the point long,lat and depth
+                warped_point = dip_stage_rotation * point
+                warped_points.append(warped_point)
+                warped_point_depths.append(point_depths[point_index] + deltaZ)
 
         # finished warping all points in polyline
         # --> increment the polyline for this time step
