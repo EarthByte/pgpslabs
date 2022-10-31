@@ -9,3 +9,6 @@ Assumptions:
 - convergence rates are taken from the plate reconstruction
 
 In current version, the slabs are represented as points along lines of equal subduction age (currently no method is implemented to turn these into a surface). The attributes at each point are the age of subuction, and optionally the age of the seafloor (requires seafloor age grids from which values would be interpolated).
+
+### Notes
+The [initial version](https://github.com/siwill22/pgpslabs) of this workflow was developed by Simon Williams, and was used within [McGirr et al. (2021)](https://doi.org/10.1130/B35595.1). This respository will likely expand on some of that work.
